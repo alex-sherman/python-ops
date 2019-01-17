@@ -60,8 +60,6 @@ all_commands = defaultdict(lambda: defaultdict(list))
 variables = defaultdict(dict)
 files = []
 
-#print(json.dumps(list(paths.keys()), indent = 2))
-
 parser = argparse.ArgumentParser(description='Ops commands')
 parser.add_argument('command', nargs="?", help='The command to run')
 parser.add_argument('--vars', action="store_true", help='Print the variables which will be used')
@@ -75,7 +73,6 @@ if args.dir:
     os.chdir(args.dir)
 
 owd = os.getcwd()
-print(owd)
 
 files = list([filename for filename in glob.iglob('**/*.ops', recursive=True)])
 
