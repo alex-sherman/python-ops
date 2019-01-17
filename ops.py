@@ -35,8 +35,7 @@ def str_replace(string, comp = None):
         string = string[:match.span()[0]] + str(value) + string[match.span()[1]:]
     return string
 
-def get_cmds(command):
-    comp = None
+def get_cmds(command, comp = None):
     if '.' in command:
         comp, command = command.split('.')
     def parse_cmd(cmd, comp = None):
@@ -47,7 +46,7 @@ def get_cmds(command):
             yield output
         if 'steps' in cmd and type(cmd['steps']) is list:
             for step in cmd['steps']:
-                yield from get_cmds(step)
+                yield from get_cmds(step, comp)
 
     comps = all_commands[command]
     if comp:
@@ -107,10 +106,6 @@ if args.vars:
     print(json.dumps(env_vars, indent = 2))
     exit(0)
 
-if args.cmds:
-    print(json.dumps(list(all_commands.keys()), indent = 2))
-    exit(0)
-
 if args.files:
     print(json.dumps(files, indent = 2))
     exit(0)
@@ -122,7 +117,12 @@ for filename in files:
                 newf.write(str_replace(line, None))
 
 if args.command:
-    for cmd in get_cmds(args.command):
+    cmds = get_cmds(args.command)
+    if args.cmds:
+        print(json.dumps(cmds, indent = 2))
+        exit(0)
+
+    for cmd in cmds:
         os.chdir(owd)
         if 'path' in cmd:
             os.chdir(cmd['path'])
