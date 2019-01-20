@@ -50,7 +50,8 @@ def get_cmds(command, comp = None):
 
     comps = all_commands[command]
     if comp:
-        return [part for cmd in comps[comp] for part in parse_cmd(cmd, comp)]
+        comp_cmds = comps[None] + comps[comp]
+        return [part for cmd in comp_cmds for part in parse_cmd(cmd, comp)]
     else:
         return [part for comp, cmds in comps.items() for cmd in cmds for part in parse_cmd(cmd, comp)]
 
