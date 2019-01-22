@@ -28,7 +28,7 @@ def str_replace(string, comp = None):
         elif var[0] != '^':
             prefixes = ["^"]
             if comp:
-                prefixes.append(comp + ".")
+                prefixes = ["^" + comp + "."] + prefixes + [comp + "."]
         value = var_lookup(var, env_vars, prefixes)
         if not value:
             print("Failed to find variable {} {}".format(comp, var))
@@ -111,11 +111,12 @@ if args.files:
     print(json.dumps(files, indent = 2))
     exit(0)
 
-for filename in files:
-    with open(filename[:-4], 'w') as newf:
-        with open(filename) as f:
-            for line in f.readlines():
-                newf.write(str_replace(line, None))
+def rewrite_files(files):
+    for filename in files:
+        with open(filename[:-4], 'w') as newf:
+            with open(filename) as f:
+                for line in f.readlines():
+                    newf.write(str_replace(line, None))
 
 if args.command:
     cmds = get_cmds(args.command)
@@ -123,10 +124,10 @@ if args.command:
         print(json.dumps(cmds, indent = 2))
         exit(0)
 
+    rewrite_files(files)
     for cmd in cmds:
         os.chdir(owd)
         if 'path' in cmd:
             os.chdir(cmd['path'])
         print(cmd["cmd"])
         ret = subprocess.call(cmd["cmd"], shell=True)
-    # print(json.dumps(get_cmds(args.command), indent = 2))
