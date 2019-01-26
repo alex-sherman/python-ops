@@ -17,7 +17,7 @@ def var_lookup(name, env_vars, prefixes = None):
     return None
 
 def str_replace(string, comp = None):
-    reg = re.compile(r'{(.*?)}')
+    reg = re.compile(r'(?<!\\){(.*?)(?<!\\)}')
     while True:
         match = reg.search(string)
         if not match: break
@@ -33,6 +33,7 @@ def str_replace(string, comp = None):
         if not value:
             print("Failed to find variable {} {}".format(comp, var))
         string = string[:match.span()[0]] + str(value) + string[match.span()[1]:]
+    string = string.replace("\\{", "{").replace("\\}", "}")
     return string
 
 def get_cmds(command, comp = None):
