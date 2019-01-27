@@ -36,18 +36,19 @@ def str_replace(string, comp = None):
     string = string.replace("\\{", "{").replace("\\}", "}")
     return string
 
+def parse_cmd(cmd, comp = None):
+    if 'cmd' in cmd and type(cmd['cmd']) is str:
+        output = {'comp': comp, 'cmd': str_replace(cmd['cmd'], comp)}
+        if comp:
+            output['path'] = paths[comp]
+        yield output
+    if 'steps' in cmd and type(cmd['steps']) is list:
+        for step in cmd['steps']:
+            yield from get_cmds(step, comp)
+
 def get_cmds(command, comp = None):
     if '.' in command:
         comp, command = command.split('.')
-    def parse_cmd(cmd, comp = None):
-        if 'cmd' in cmd and type(cmd['cmd']) is str:
-            output = {'comp': comp, 'cmd': str_replace(cmd['cmd'], comp)}
-            if comp:
-                output['path'] = paths[comp]
-            yield output
-        if 'steps' in cmd and type(cmd['steps']) is list:
-            for step in cmd['steps']:
-                yield from get_cmds(step, comp)
 
     comps = all_commands[command]
     if comp:
@@ -59,6 +60,7 @@ def get_cmds(command, comp = None):
 paths = {}
 all_commands = defaultdict(lambda: defaultdict(list))
 variables = defaultdict(dict)
+webhooks = []
 files = []
 
 parser = argparse.ArgumentParser(description='Ops commands')
@@ -97,6 +99,11 @@ for filename in glob.iglob('**/ops.yaml', recursive=True):
                     else:
                         varName = var
                     variables[env][varName] = env_vars[var]
+        if "webhooks" in comp:
+            for hook in comp["webhooks"]:
+                if "name" not in hook: hook["name"] = None
+                if "full_name" not in hook: hook["full_name"] = None
+                webhooks.append(hook)
 
 env_vars = variables["default"]
 
@@ -119,16 +126,48 @@ def rewrite_files(files):
                 for line in f.readlines():
                     newf.write(str_replace(line, None))
 
-if args.command:
-    cmds = get_cmds(args.command)
-    if args.cmds:
-        print(json.dumps(cmds, indent = 2))
-        exit(0)
-
-    rewrite_files(files)
+def run_cmds(cmds):
     for cmd in cmds:
         os.chdir(owd)
         if 'path' in cmd:
             os.chdir(cmd['path'])
         print(cmd["cmd"])
         ret = subprocess.call(cmd["cmd"], shell=True)
+
+def run_webhooks():
+    from flask import Flask, request
+    from threading import Thread
+    app = Flask(__name__)
+    cur_thread = None
+
+    @app.route('/', methods=['POST'])
+    def webhook():
+        data = request.get_json()
+        if "repository" not in data or "ref" not in data:
+            return "Not a push event"
+        full_name = data["repository"]["full_name"]
+        name = data["repository"]["name"]
+        branch = data["ref"].split('/')[-1]
+        webhook = next((h for h in webhooks if h["full_name"] == full_name or h["name"] == name), None)
+        if not webhook:
+            return "No hook defined"
+        def thread_run(cmds):
+            rewrite_files(files)
+            run_cmds(cmds)
+        Thread(target=thread_run, args=[parse_cmd(webhook)]).start()
+        return "OK"
+
+    app.run('0.0.0.0', 9000)
+
+
+if args.command:
+    if args.command == "webhook":
+        run_webhooks()
+        exit(0)
+    cmds = get_cmds(args.command)
+    if args.cmds:
+        print(json.dumps(cmds, indent = 2))
+        exit(0)
+
+    rewrite_files(files)
+    run_cmds(cmds)
