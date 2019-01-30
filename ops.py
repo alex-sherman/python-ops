@@ -7,13 +7,32 @@ import argparse
 import re
 import subprocess
 
-def var_lookup(name, env_vars, prefixes = None):
-    if prefixes:
-        for prefix in prefixes:
-            if prefix + name in env_vars:
-                return env_vars[prefix + name]
-    if name in env_vars:
-        return env_vars[name]
+def var_lookup(name, comp = None, env = 'default'):
+    orig_name = name
+    orig_comp = comp
+    prefixes = []
+
+    spec_comp = None
+    if ':' in name:
+        env, name = name.split(':')
+    if '.' in name:
+        spec_comp, name = name.split('.')
+        if spec_comp != '':
+            comp = spec_comp
+
+    names = []
+    if spec_comp == '':
+        names = [(comp, name)]
+    else:
+        names = [(None, '^' + name), (comp, name)]
+        if comp:
+            names.append((None, comp + '.' + name))
+    env_vars = variables[env]
+    for _name in names:
+        if _name[1] in env_vars[_name[0]]:
+            return str_replace(env_vars[_name[0]][_name[1]], comp)
+    if env != 'default':
+        return var_lookup(orig_name, orig_comp)
     return None
 
 def str_replace(string, comp = None):
@@ -22,16 +41,10 @@ def str_replace(string, comp = None):
         match = reg.search(string)
         if not match: break
         var = match.group(1)
-        prefixes = []
-        if var[0] == '.':
-            var = comp + '.' + var[1:]
-        elif var[0] != '^':
-            prefixes = ["^"]
-            if comp:
-                prefixes = ["^" + comp + "."] + prefixes + [comp + "."]
-        value = var_lookup(var, env_vars, prefixes)
+        value = var_lookup(var, comp, env)
         if not value:
             print("Failed to find variable {} {}".format(comp, var))
+            exit(1)
         string = string[:match.span()[0]] + str(value) + string[match.span()[1]:]
     string = string.replace("\\{", "{").replace("\\}", "}")
     return string
@@ -59,7 +72,7 @@ def get_cmds(command, comp = None):
 
 paths = {}
 all_commands = defaultdict(lambda: defaultdict(list))
-variables = defaultdict(dict)
+variables = defaultdict(lambda: defaultdict(dict))
 webhooks = []
 files = []
 
@@ -94,25 +107,26 @@ for filename in glob.iglob('**/ops.yaml', recursive=True):
             for env in comp["vars"]:
                 env_vars = comp["vars"][env]
                 for var in env_vars:
-                    if name:
-                        varName = name + "." + var
-                    else:
-                        varName = var
-                    variables[env][varName] = env_vars[var]
+                    variables[env][name][var] = env_vars[var]
         if "webhooks" in comp:
             for hook in comp["webhooks"]:
                 if "name" not in hook: hook["name"] = None
                 if "full_name" not in hook: hook["full_name"] = None
                 webhooks.append(hook)
 
-env_vars = variables["default"]
+env = "default"
 
 if args.env:
-    for var in variables[args.env]:
-        env_vars[var] = variables[args.env][var]
+    env = args.env
 
 if args.vars:
-    print(json.dumps(env_vars, indent = 2))
+    if args.command:
+        try:
+            print(var_lookup(args.command))
+        except:
+            pass
+        exit(0)
+    print(json.dumps(variables[env], indent = 2))
     exit(0)
 
 if args.files:
