@@ -31,8 +31,8 @@ def var_lookup(name, comp = None, env = 'default'):
     for _name in names:
         if _name[1] in env_vars[_name[0]]:
             return str_replace(env_vars[_name[0]][_name[1]], comp)
-    if env != 'default':
-        return var_lookup(orig_name, orig_comp)
+        if _name[1] in variables['default'][_name[0]]:
+            return str_replace(variables['default'][_name[0]][_name[1]], comp)
     return None
 
 def str_replace(string, comp = None):
