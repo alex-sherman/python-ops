@@ -134,6 +134,7 @@ if args.files:
     exit(0)
 
 def rewrite_files(files):
+    os.chdir(owd)
     for filename in files:
         with open(filename[:-4], 'w') as newf:
             with open(filename) as f:
