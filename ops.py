@@ -97,7 +97,7 @@ class State:
             if not match: break
             var = match.group(1)
             value = self.var_lookup(var, comp, env)
-            if not value:
+            if value is None:
                 print("Failed to find variable {} {}".format(comp, var))
                 exit(1)
             string = string[:match.span()[0]] + str(value) + string[match.span()[1]:]
@@ -112,7 +112,7 @@ class State:
             yield output
         if 'steps' in cmd and type(cmd['steps']) is list:
             for step in cmd['steps']:
-                yield from self.get_cmds(step, comp)
+                yield from self.get_cmds(step, comp, env)
 
     def get_cmds(self, command, comp = None, env = 'default'):
         if '.' in command:
@@ -184,8 +184,8 @@ def run_webhooks():
             return "No hook defined"
         if not branch in webhook["branch"]:
             return "No env for branch " + branch
-        print("Running webhook:", webhook)
         env = webhook["branch"][branch]
+        print("Running webhook: " + str(webhook) + " env: " + str(env))
         def thread_run(cmds):
             state.refresh()
             state.rewrite_files(env)
