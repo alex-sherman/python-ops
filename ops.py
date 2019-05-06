@@ -17,13 +17,13 @@ class State:
         self.owd = os.getcwd()
 
     def refresh(self):
+        os.chdir(self.owd)
         self.paths = {}
         self.all_commands = defaultdict(lambda: defaultdict(list))
         self.variables = defaultdict(lambda: defaultdict(dict))
         self.webhooks = []
         self.files = list([filename for filename in glob.iglob('**/*.ops', recursive=True)])
 
-        os.chdir(self.owd)
         for filename in glob.iglob('**/ops.yaml', recursive=True):
             with open(filename) as f:
                 comp = yaml.load(f)
@@ -76,12 +76,14 @@ class State:
                 comp = spec_comp
 
         names = []
-        if spec_comp == '':
+        if spec_comp == '': # cases like name = '.var'
             names = [(comp, name)]
         else:
-            names = [(None, '^' + name), (comp, name)]
             if comp:
-                names.append((None, comp + '.' + name))
+                names += [(None, '^' + comp + '.' + name)]    # (None) ^comp.name
+            names += [(None, '^' + name), (comp, name)]       # (None) ^name
+            if comp:                                          # (Comp) name
+                names.append((None, comp + '.' + name))       # (None) comp.name
         env_vars = self.variables[env]
         for _name in names:
             if _name[1] in env_vars[_name[0]]:
@@ -185,16 +187,18 @@ def run_webhooks():
         if not branch in webhook["branch"]:
             return "No env for branch " + branch
         env = webhook["branch"][branch]
+        state.variables["default"][None]["^commit"] = branch
         print("Running webhook: " + str(webhook) + " env: " + str(env))
-        def thread_run(cmds):
+        def thread_run(cmd):
             state.refresh()
+            state.variables["default"][None]["^commit"] = branch
+            cmds = list(state.parse_cmd(cmd, None, env))
             state.rewrite_files(env)
             state.run_cmds(cmds)
         if 'refresh' in webhook:
             refresh_cmd = {'steps': webhook['refresh']}
-            thread_run(list(state.parse_cmd(refresh_cmd, None, env)))
-            state.refresh()
-        Thread(target=thread_run, args=[list(state.parse_cmd(webhook, None, env))]).start()
+            thread_run(refresh_cmd)
+        Thread(target=thread_run, args=[webhook]).start()
         return "OK"
 
     app.run('0.0.0.0', 9000)
