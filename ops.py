@@ -26,11 +26,11 @@ class State:
 
         for filename in glob.iglob('**/ops.yaml', recursive=True):
             with open(filename) as f:
-                comp = yaml.load(f)
+                comp = yaml.load(f, Loader=yaml.FullLoader)
                 name = None
                 if "name" in comp:
                     name = comp["name"]
-                    self.paths[name] = os.path.dirname(filename)
+                    self.paths[name] = os.path.dirname(filename) or './'
                 if "cmds" in comp:
                     for cmd in comp["cmds"]:
                         for part in comp["cmds"][cmd]:
@@ -39,7 +39,7 @@ class State:
                     for env in comp["vars"]:
                         env_vars = comp["vars"][env]
                         for var in env_vars:
-                            self.variables[env][name][var] = env_vars[var]
+                            self.variables[env][name][var] = self.parse_var(env_vars[var])
                 if "webhooks" in comp:
                     for hook in comp["webhooks"]:
                         if "name" not in hook: hook["name"] = None
@@ -60,7 +60,14 @@ class State:
             if 'path' in cmd:
                 os.chdir(cmd['path'])
             print(cmd["cmd"])
-            ret = subprocess.call(cmd["cmd"], shell=True)
+            subprocess.run(cmd["cmd"], shell=True)
+
+    def parse_var(self, var):
+        if var[0] == '$':
+            return subprocess.run(var[1:], shell=True, stdout=subprocess.PIPE).stdout.decode('utf-8').rstrip()
+        if var[:2] == '\\$':
+            return var[1:]
+        return var
 
     def var_lookup(self, name, comp, env):
         orig_name = name
