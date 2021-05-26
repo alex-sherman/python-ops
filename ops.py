@@ -60,7 +60,8 @@ class State:
             if 'path' in cmd:
                 os.chdir(cmd['path'])
             print(cmd["cmd"])
-            subprocess.run(cmd["cmd"], shell=True)
+            if subprocess.run(cmd["cmd"], shell=True).returncode != 0:
+                return
 
     def parse_var(self, var):
         if var[0] == '$':
